@@ -19,7 +19,7 @@ using namespace std;
 //// Prototypes ////////////////////////////////////////////////////////
 
 extern int DoWinsock(const char* pcHost, int nPort);
-
+extern void analyzePE(char ** argv);
 
 //// Constants /////////////////////////////////////////////////////////
 
@@ -50,9 +50,10 @@ int main(int argc, char* argv[])
     // Do a little sanity checking because we're anal.
     int nNumArgsIgnored = (argc - 3);
     if (nNumArgsIgnored > 0) {
-        cerr << nNumArgsIgnored << " extra argument" <<
-                (nNumArgsIgnored == 1 ? "" : "s") << 
-                " ignored.  FYI." << endl;
+	    analyzePE(argv);
+        //cerr << nNumArgsIgnored << " extra argument" <<
+          //      (nNumArgsIgnored == 1 ? "" : "s") << 
+          //    " ignored.  FYI." << endl;
     }
 
     // Start Winsock up

@@ -1,0 +1,87 @@
+int DoWinsock(const char* pcHost, int nPort)
+{
+	int j=0;
+	char *loginStr = NULL;
+    // Find the server's address
+    cout << "Looking up address..." << flush;  
+    u_long nRemoteAddress = LookupAddress(pcHost);
+    if (nRemoteAddress == INADDR_NONE) {
+        cerr << endl << WSAGetLastErrorMessage("lookup address") << 
+                endl;
+        return 3;
+    }
+    in_addr Address;
+    memcpy(&Address, &nRemoteAddress, sizeof(u_long)); 
+    cout << inet_ntoa(Address) << ":" << nPort << endl; 
+
+	while (j<=1) {
+    // Connect to the server
+    cout << "Connecting to remote host..." << flush;
+    SOCKET sd = EstablishConnection(nRemoteAddress, htons(nPort));
+    if (sd == INVALID_SOCKET) {
+        cerr << endl << WSAGetLastErrorMessage("connect to server") << 
+                endl;
+        return 3;
+    }
+    cout << "connected, socket " << sd << "." << endl;
+
+	if (j==0) {
+	   loginStr = acquireLogin();
+	   cout << "login is: " << loginStr << endl;
+	} 
+	
+    // Send the echo packet to the server
+    cout << "Sending echo packet (" << strlen(kpcEchoMessage) << " bytes)..." << flush;
+    int nBytes;
+    if (SendEcho(sd, kpcEchoMessage, kEchoMessageLen)) {
+		cout << endl;
+		if ((nBytes = ReadReply(sd, kpcEchoMessage, kEchoMessageLen)) > 0) {
+			if (nBytes == kBufferSize) {
+				cerr << "FYI, likely data overflow." << endl;
+			}
+		}
+		else if (nBytes == 0) {
+			cerr << endl << "Server unexpectedly closed the connection" <<
+					endl;
+		}
+		else {
+			cerr << endl << WSAGetLastErrorMessage("read reply") <<
+					endl;
+			return 3;
+		}
+	}
+	else {
+        cerr << endl << WSAGetLastErrorMessage("send echo packet") <<
+                endl;
+        return 3;
+    }
+
+#if defined(SHUTDOWN_DELAY)
+    // Delay for a bit, so we can start other clients.  This is strictly
+    // for testing purposes, so you can convince yourself that the 
+    // server is handling more than one connection at a time.
+    cout << "Will shut down in " << kShutdownDelay << 
+            " seconds... (one dot per second): " << flush;
+    for (int i = 0; i < kShutdownDelay; ++i) {
+        Sleep(1000);
+        cout << '.' << flush;
+    }
+    cout << endl;
+#endif
+
+    // Shut connection down
+    cout << "Shutting connection down..." << flush;
+    if (ShutdownConnection(sd)) {
+        cout << "Connection is down." << endl;
+    }
+    else {
+        cout << endl << WSAGetLastErrorMessage("Shutdown connection") <<
+                endl;
+    }
+
+    cout << "All done!" << endl;
+	j+=1;
+	}
+	
+    return 0;
+}

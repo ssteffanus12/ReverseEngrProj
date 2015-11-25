@@ -18,7 +18,7 @@
 ***********************************************************************/
 
 #include "ws-util.h"
-
+#include "protocol.h"
 #include <winsock.h>
 
 #include <iostream>
@@ -35,10 +35,11 @@ using namespace std;
 
 // kBufferSize must be larger than the length of kpcEchoMessage.
 const int kBufferSize = 1024;
-const char* kpcEchoMessage = "This is a test of the emergency data "
+char* kpcEchoMessage = "This is a test of the emergency data "
         "transfer system.  If this had been real a real emergency, we "
         "would have sent this data out-of-band.";
 const int kEchoMessageLen = strlen(kpcEchoMessage);
+char *killServer = "kill server";
 
 #if defined(SHUTDOWN_DELAY)
 // How long to wait after we do the echo before shutting the connection
@@ -53,18 +54,27 @@ const int kShutdownDelay = 3;
 
 u_long LookupAddress(const char* pcHost);
 SOCKET EstablishConnection(u_long nRemoteAddr, u_short nPort);
-bool SendEcho(SOCKET sd);
-int ReadReply(SOCKET sd);
-
+bool SendEcho(SOCKET sd, char* myString, int myStringLen);
+int ReadReply(SOCKET sd, char *orgMsg, int orgMsgLen);
+char* acquireLogin();
+int sendMsg(SOCKET sd, char *myString, int myStrLen);
+int shutdown(SOCKET sd);
 
 //// DoWinsock /////////////////////////////////////////////////////////
 // The module's driver function -- we just call other functions and
 // interpret their results.
 
+
+
+
 int DoWinsock(const char* pcHost, int nPort)
 {
+	int j=0;
+	char *loginStr = NULL;
+	int retVal;
+	
     // Find the server's address
-    cout << "Looking up address..." << flush;
+    cout << "Looking up address..." << flush;  
     u_long nRemoteAddress = LookupAddress(pcHost);
     if (nRemoteAddress == INADDR_NONE) {
         cerr << endl << WSAGetLastErrorMessage("lookup address") << 
@@ -75,6 +85,7 @@ int DoWinsock(const char* pcHost, int nPort)
     memcpy(&Address, &nRemoteAddress, sizeof(u_long)); 
     cout << inet_ntoa(Address) << ":" << nPort << endl; 
 
+	
     // Connect to the server
     cout << "Connecting to remote host..." << flush;
     SOCKET sd = EstablishConnection(nRemoteAddress, htons(nPort));
@@ -84,58 +95,22 @@ int DoWinsock(const char* pcHost, int nPort)
         return 3;
     }
     cout << "connected, socket " << sd << "." << endl;
-
-    // Send the echo packet to the server
-    cout << "Sending echo packet (" << strlen(kpcEchoMessage) << " bytes)..." << flush;
-    int nBytes;
-    if (SendEcho(sd)) {
-		cout << endl;
-		if ((nBytes = ReadReply(sd)) > 0) {
-			if (nBytes == kBufferSize) {
-				cerr << "FYI, likely data overflow." << endl;
-			}
-		}
-		else if (nBytes == 0) {
-			cerr << endl << "Server unexpectedly closed the connection" <<
-					endl;
-		}
-		else {
-			cerr << endl << WSAGetLastErrorMessage("read reply") <<
-					endl;
-			return 3;
-		}
+  
+  while (j<=1) {
+	if (j==0) {
+	   loginStr = acquireLogin();
+	   retVal = sendMsg(sd, loginStr, strlen(loginStr));
+	   if (retVal == 3) return 3;
+	} else if (j==1) {
+		retVal = sendMsg(sd, kpcEchoMessage, kEchoMessageLen);
+	    if (retVal == 3) return 3;
+	} 
+	j+=1;
 	}
-	else {
-        cerr << endl << WSAGetLastErrorMessage("send echo packet") <<
-                endl;
-        return 3;
-    }
-
-#if defined(SHUTDOWN_DELAY)
-    // Delay for a bit, so we can start other clients.  This is strictly
-    // for testing purposes, so you can convince yourself that the 
-    // server is handling more than one connection at a time.
-    cout << "Will shut down in " << kShutdownDelay << 
-            " seconds... (one dot per second): " << flush;
-    for (int i = 0; i < kShutdownDelay; ++i) {
-        Sleep(1000);
-        cout << '.' << flush;
-    }
-    cout << endl;
-#endif
-
-    // Shut connection down
-    cout << "Shutting connection down..." << flush;
-    if (ShutdownConnection(sd)) {
-        cout << "Connection is down." << endl;
-    }
-    else {
-        cout << endl << WSAGetLastErrorMessage("Shutdown connection") <<
-                endl;
-    }
-
-    cout << "All done!" << endl;
-
+	
+	retVal = shutdown(sd);
+	if (retVal != 0) return retVal;
+	
     return 0;
 }
 
@@ -186,14 +161,98 @@ SOCKET EstablishConnection(u_long nRemoteAddr, u_short nPort)
 }
 
 
+int sendMsg(SOCKET sd, char *msg, int msgLength) {
+	
+	// Send the echo packet to the server
+    cout << "Sending echo packet (" << msgLength << " bytes)..." << flush;
+    int nBytes;
+    if (SendEcho(sd, msg, msgLength)) {
+		cout << endl;
+		if ((nBytes = ReadReply(sd, msg, msgLength)) > 0) {
+			if (nBytes == kBufferSize) {
+				cerr << "FYI, likely data overflow." << endl;
+			}
+		}
+		else if (nBytes == 0) {
+			cerr << endl << "Server unexpectedly closed the connection" <<
+					endl;
+		}
+		else {
+			cerr << endl << WSAGetLastErrorMessage("read reply") <<
+					endl;
+			return 3;
+		}
+	}
+	else {
+        cerr << endl << WSAGetLastErrorMessage("send echo packet") <<
+                endl;
+        return 3;
+    }
+   for (int i = 0; i < kShutdownDelay; ++i) {
+        Sleep(1000);
+        cout << '.' << flush;
+    }
+    cout << endl;
+	
+	return 0;
+}
+
+int shutdown(SOCKET sd) {
+	
+	#if defined(SHUTDOWN_DELAY)
+    // Delay for a bit, so we can start other clients.  This is strictly
+    // for testing purposes, so you can convince yourself that the 
+    // server is handling more than one connection at a time.
+    cout << "Will shut down in " << kShutdownDelay << 
+            " seconds... (one dot per second): " << flush;
+    for (int i = 0; i < kShutdownDelay; ++i) {
+        Sleep(1000);
+        cout << '.' << flush;
+    }
+    cout << endl;
+#endif
+
+    // Shut connection down
+    cout << "Shutting connection down..." << flush;
+    if (ShutdownConnection(sd)) {
+        cout << "Connection is down." << endl;
+    }
+    else {
+        cout << endl << WSAGetLastErrorMessage("Shutdown connection") <<
+                endl;
+    }
+
+    cout << "All done!" << endl;
+	
+	return 0;
+	
+}
+
+
+/// acquireLogin ///////////////////////////////////////////////////////
+// Scans in and concatenates username & password
+
+char* acquireLogin() {
+	
+	std::string username, password;
+	cout << "Enter correct username to analyze PE file" << endl;
+	cin >> username;
+	cout << "Now enter correct password" << endl;
+	cin >> password;
+	username = username + password;
+	char *str = (char *)malloc((username.length() +1)* sizeof(char));
+	strcpy(str, username.c_str());
+	return str;
+}
+
 //// SendEcho //////////////////////////////////////////////////////////
 // Sends the echo packet to the server.  Returns true on success,
 // false otherwise.
 
-bool SendEcho(SOCKET sd)
+bool SendEcho(SOCKET sd, char* myString, int myStringLen) 
 {
     // Send the string to the server
-    if (send(sd, kpcEchoMessage, kEchoMessageLen, 0) != SOCKET_ERROR) {
+    if (send(sd, myString, myStringLen, 0) != SOCKET_ERROR) {
 		return true;
 	}
 	else {
@@ -201,17 +260,27 @@ bool SendEcho(SOCKET sd)
     }
 }
 
+/*
+bool SendEchoStruct(SOCKET sd, protocolPacket pp, int ppSize) {  
+	
+	if (send(sd, pp, ppSize, 0) != SOCKET_ERROR) {
+		return true;
+	} else {
+		return false;
+	}
+}
+*/
 
 //// ReadReply /////////////////////////////////////////////////////////
 // Read the reply packet and check it for sanity.  Returns -1 on 
 // error, 0 on connection closed, > 0 on success.
 
-int ReadReply(SOCKET sd)
+int ReadReply(SOCKET sd, char *myStr, int myStrLen)
 {
     // Read reply from server
     char acReadBuffer[kBufferSize];
     int nTotalBytes = 0;
-    while (nTotalBytes < kEchoMessageLen) {
+    while (nTotalBytes < myStrLen) {
         int nNewBytes = recv(sd, acReadBuffer + nTotalBytes, 
                 kBufferSize - nTotalBytes, 0);
         if (nNewBytes == SOCKET_ERROR) {
@@ -226,7 +295,7 @@ int ReadReply(SOCKET sd)
     }
 
     // Check data for sanity
-    if (strncmp(acReadBuffer, kpcEchoMessage, nTotalBytes) == 0) {
+    if (strncmp(acReadBuffer, myStr, nTotalBytes) == 0) {
 		cout << "Reply packet matches what we sent!" << endl;
 	}
 	else {

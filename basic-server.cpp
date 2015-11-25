@@ -13,11 +13,11 @@
 ***********************************************************************/
 
 #include "ws-util.h"
-
+#include "protocol.h"
 #include <winsock.h>
 
 #include <iostream>
-
+#include <fstream>
 using namespace std;
 
 
@@ -25,15 +25,17 @@ using namespace std;
 // Constants
 
 const int kBufferSize = 1024;
-        
+const char *killServer = "kill server";
+const char *specialPhrase = "StruggleBus";
 
 ////////////////////////////////////////////////////////////////////////
 // Prototypes
 
 SOCKET SetUpListener(const char* pcAddress, int nPort);
 SOCKET AcceptConnection(SOCKET ListeningSocket, sockaddr_in& sinRemote);
-bool EchoIncomingPackets(SOCKET sd);
 
+bool EchoIncomingPackets(SOCKET sd, bool firstMsg);
+bool firstMsg;
 
 //// DoWinsock /////////////////////////////////////////////////////////
 // The module's driver function -- we just call other functions and
@@ -41,6 +43,7 @@ bool EchoIncomingPackets(SOCKET sd);
 
 int DoWinsock(const char* pcAddress, int nPort)
 {
+	
     // Begin listening for connections
     cout << "Establishing the listener..." << endl;
     SOCKET ListeningSocket = SetUpListener(pcAddress, htons(nPort));
@@ -60,6 +63,7 @@ int DoWinsock(const char* pcAddress, int nPort)
             cout << "Accepted connection from " <<
                     inet_ntoa(sinRemote.sin_addr) << ":" <<
                     ntohs(sinRemote.sin_port) << "." << endl;
+					firstMsg = true;
         }
         else {
             cout << endl << WSAGetLastErrorMessage(
@@ -68,10 +72,11 @@ int DoWinsock(const char* pcAddress, int nPort)
         }
         
         // Bounce packets from the client back to it.
-        if (EchoIncomingPackets(sd)) {
+        if (EchoIncomingPackets(sd, firstMsg)) {
             // Successfully bounced all connections back to client, so
             // close the connection down gracefully.
             cout << "Shutting connection down..." << flush;
+			
             if (ShutdownConnection(sd)) {
                 cout << "Connection is down." << endl;
             }
@@ -86,6 +91,7 @@ int DoWinsock(const char* pcAddress, int nPort)
                     "echo incoming packets") << endl;
             return 3;
         }
+	    firstMsg = false;
     }
 
 #if defined(_MSC_VER)
@@ -136,17 +142,48 @@ SOCKET AcceptConnection(SOCKET ListeningSocket, sockaddr_in& sinRemote)
 // Bounces any incoming packets back to the client.  We return false
 // on errors, or true if the client closed the socket normally.
 
-bool EchoIncomingPackets(SOCKET sd)
+
+
+
+bool EchoIncomingPackets(SOCKET sd, bool firstMsg)
 {
+	
+	ofstream myfile;
+    myfile.open("output.txt", std::ios_base::app);
     // Read data from client
     char acReadBuffer[kBufferSize];
+	memset(acReadBuffer, 0, kBufferSize);
     int nReadBytes;
     do {
         nReadBytes = recv(sd, acReadBuffer, kBufferSize, 0);
         if (nReadBytes > 0) {
             cout << "Received " << nReadBytes << 
                     " bytes from client." << endl;
-        
+           cout << "firstMsg : " << firstMsg << endl;
+		   
+		   if (firstMsg) {
+			   firstMsg = false;
+			   char *str = NULL;
+			   str = (char *)malloc(nReadBytes * sizeof(char));
+				strncpy(str,acReadBuffer,nReadBytes);
+				if (strcmp(str, specialPhrase) != 0) {
+					free(str);
+					cout << "Incorrect username and password" << endl;
+					return false;
+				}
+		   }
+		   
+		   for (int k=0; k<nReadBytes; k++) {
+			   cout << acReadBuffer[k];
+		   } cout << endl;
+		
+			for (int i=0; i<nReadBytes; i++) {
+				myfile << acReadBuffer[i];
+			}
+			myfile << endl;
+			myfile.close();
+			
+		
             int nSentBytes = 0;
             while (nSentBytes < nReadBytes) {
                 int nTemp = send(sd, acReadBuffer + nSentBytes,
@@ -166,7 +203,8 @@ bool EchoIncomingPackets(SOCKET sd)
                             endl;
                     return true;
                 }
-            }
+			}
+           
         }
         else if (nReadBytes == SOCKET_ERROR) {
             return false;

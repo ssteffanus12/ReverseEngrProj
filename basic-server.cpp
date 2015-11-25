@@ -33,7 +33,7 @@ const char *specialPhrase = "StruggleBus";
 
 SOCKET SetUpListener(const char* pcAddress, int nPort);
 SOCKET AcceptConnection(SOCKET ListeningSocket, sockaddr_in& sinRemote);
-
+//bool EchoIncomingPacketsStruct(SOCKET sd);
 bool EchoIncomingPackets(SOCKET sd, bool firstMsg);
 bool firstMsg;
 
@@ -41,7 +41,7 @@ bool firstMsg;
 // The module's driver function -- we just call other functions and
 // interpret their results.
 
-int DoWinsock(const char* pcAddress, int nPort)
+int DoWinsock(const char* pcAddress, int nPort, protocolPacket *p)
 {
 	
     // Begin listening for connections
@@ -91,7 +91,7 @@ int DoWinsock(const char* pcAddress, int nPort)
                     "echo incoming packets") << endl;
             return 3;
         }
-	    firstMsg = false;
+		
     }
 
 #if defined(_MSC_VER)
@@ -138,52 +138,88 @@ SOCKET AcceptConnection(SOCKET ListeningSocket, sockaddr_in& sinRemote)
 }
 
 
+
+
+
 //// EchoIncomingPackets ///////////////////////////////////////////////
 // Bounces any incoming packets back to the client.  We return false
 // on errors, or true if the client closed the socket normally.
 
 
-
-
 bool EchoIncomingPackets(SOCKET sd, bool firstMsg)
 {
 	
-	ofstream myfile;
-    myfile.open("output.txt", std::ios_base::app);
-    // Read data from client
+
+	// Read data from client
     char acReadBuffer[kBufferSize];
 	memset(acReadBuffer, 0, kBufferSize);
     int nReadBytes;
     do {
+		if (firstMsg == false) {
+			FILE *fileID;
+			cout << "struct version" << endl;
+			memset(acReadBuffer, 0, kBufferSize);
+	
+			protocolPacket *p = (protocolPacket *) malloc(sizeof(protocolPacket));
+			nReadBytes = recv(sd, ((char *)p), sizeof(protocolPacket), 0);
+	
+	
+	
+	
+			if (nReadBytes > 0) {
+				cout << "Received " << nReadBytes << " bytes from client." << endl;
+            
+				fileID = fopen("output.txt","a");
+				for (int i=0; i<5; i++) {
+					fprintf(fileID, "%d: %s\n", i, p->data[i]);
+				}
+			
+				fclose(fileID);
+	
+		
+					int nTemp = send(sd, ((char *)p), sizeof(protocolPacket), 0);
+					
+					if (nTemp > 0) {
+						cout << "Sent " << nTemp << 
+                            " bytes back to client." << endl;
+							nReadBytes = 0;
+					}
+					else if (nTemp == SOCKET_ERROR) {
+						return false;
+					}
+					else {
+                    // Client closed connection before we could reply to
+                    // all the data it sent, so bomb out early.
+						cout << "Peer unexpectedly dropped connection!" << endl;
+						return true;
+					}
+				 
+			} else if (nReadBytes == SOCKET_ERROR) {
+				return false;
+			}
+			
+		}
+			
+	    else {
+		cout << "regular version" << endl;
         nReadBytes = recv(sd, acReadBuffer, kBufferSize, 0);
         if (nReadBytes > 0) {
             cout << "Received " << nReadBytes << 
                     " bytes from client." << endl;
-           cout << "firstMsg : " << firstMsg << endl;
-		   
-		   if (firstMsg) {
-			   firstMsg = false;
-			   char *str = NULL;
-			   str = (char *)malloc(nReadBytes * sizeof(char));
-				strncpy(str,acReadBuffer,nReadBytes);
-				if (strcmp(str, specialPhrase) != 0) {
-					free(str);
-					cout << "Incorrect username and password" << endl;
-					return false;
-				}
-		   }
-		   
-		   for (int k=0; k<nReadBytes; k++) {
-			   cout << acReadBuffer[k];
-		   } cout << endl;
-		
-			for (int i=0; i<nReadBytes; i++) {
-				myfile << acReadBuffer[i];
+          
+		  
+			firstMsg = false;
+			char *str = NULL;
+		    str = (char *)malloc(nReadBytes * sizeof(char));
+			strncpy(str,acReadBuffer,nReadBytes);
+				
+		    if (strcmp(str, specialPhrase) != 0) {
+				free(str);
+				cout << "Incorrect username and password" << endl;
+				return false;
 			}
-			myfile << endl;
-			myfile.close();
-			
-		
+		   
+
             int nSentBytes = 0;
             while (nSentBytes < nReadBytes) {
                 int nTemp = send(sd, acReadBuffer + nSentBytes,
@@ -192,6 +228,7 @@ bool EchoIncomingPackets(SOCKET sd, bool firstMsg)
                     cout << "Sent " << nTemp << 
                             " bytes back to client." << endl;
                     nSentBytes += nTemp;
+					
                 }
                 else if (nTemp == SOCKET_ERROR) {
                     return false;
@@ -209,8 +246,10 @@ bool EchoIncomingPackets(SOCKET sd, bool firstMsg)
         else if (nReadBytes == SOCKET_ERROR) {
             return false;
         }
+	 }
     } while (nReadBytes != 0);
 
+	
     cout << "Connection closed by peer." << endl;
     return true;
 }

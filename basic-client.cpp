@@ -23,6 +23,8 @@
 
 #include <iostream>
 #include <string.h>
+#include <stdio.h>
+
 
 using namespace std;
 
@@ -35,11 +37,11 @@ using namespace std;
 
 // kBufferSize must be larger than the length of kpcEchoMessage.
 const int kBufferSize = 1024;
-char* kpcEchoMessage = "This is a test of the emergency data "
-        "transfer system.  If this had been real a real emergency, we "
-        "would have sent this data out-of-band.";
-const int kEchoMessageLen = strlen(kpcEchoMessage);
-char *killServer = "kill server";
+//char* kpcEchoMessage = "This is a test of the emergency data "
+//        "transfer system.  If this had been real a real emergency, we "
+//        "would have sent this data out-of-band.";
+//const int kEchoMessageLen = strlen(kpcEchoMessage);
+
 
 #if defined(SHUTDOWN_DELAY)
 // How long to wait after we do the echo before shutting the connection
@@ -67,7 +69,7 @@ int shutdown(SOCKET sd);
 
 
 
-int DoWinsock(const char* pcHost, int nPort)
+int DoWinsock(const char* pcHost, int nPort, protocolPacket *p)
 {
 	int j=0;
 	char *loginStr = NULL;
@@ -101,9 +103,9 @@ int DoWinsock(const char* pcHost, int nPort)
 	   loginStr = acquireLogin();
 	   retVal = sendMsg(sd, loginStr, strlen(loginStr));
 	   if (retVal == 3) return 3;
-	} else if (j==1) {
-		retVal = sendMsg(sd, kpcEchoMessage, kEchoMessageLen);
-	    if (retVal == 3) return 3;
+	} else  {
+		retVal = sendMsg(sd, ((char *)p), sizeof(protocolPacket));
+		if (retVal == 3) return 3;
 	} 
 	j+=1;
 	}
@@ -159,6 +161,10 @@ SOCKET EstablishConnection(u_long nRemoteAddr, u_short nPort)
 
     return sd;
 }
+
+
+
+
 
 
 int sendMsg(SOCKET sd, char *msg, int msgLength) {

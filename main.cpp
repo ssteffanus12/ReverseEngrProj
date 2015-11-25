@@ -9,8 +9,9 @@
 ***********************************************************************/
 
 #include <winsock.h>
-
+#include "protocol.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <iostream>
 
 using namespace std;
@@ -18,14 +19,14 @@ using namespace std;
 
 //// Prototypes ////////////////////////////////////////////////////////
 
-extern int DoWinsock(const char* pcHost, int nPort);
-extern void analyzePE(char ** argv);
+extern int DoWinsock(const char* pcHost, int nPort, protocolPacket *p);
+extern protocolPacket* analyzePE(char ** argv);
 
 //// Constants /////////////////////////////////////////////////////////
 
 // Default port to connect to on the server
 const int kDefaultServerPort = 4242;
-
+protocolPacket *p;
 
 //// main //////////////////////////////////////////////////////////////
 
@@ -50,10 +51,13 @@ int main(int argc, char* argv[])
     // Do a little sanity checking because we're anal.
     int nNumArgsIgnored = (argc - 3);
     if (nNumArgsIgnored > 0) {
-	    analyzePE(argv);
+	    p = analyzePE(argv);
         //cerr << nNumArgsIgnored << " extra argument" <<
           //      (nNumArgsIgnored == 1 ? "" : "s") << 
           //    " ignored.  FYI." << endl;
+		 // for (int l=0; l<5; l++) {
+		//	printf("%d: %s | size: %d\n", l, p->data[l], p->dataSize[l]);
+		//  }
     }
 
     // Start Winsock up
@@ -66,7 +70,7 @@ int main(int argc, char* argv[])
     }
 
     // Call the main example routine.
-    int retval = DoWinsock(pcHost, nPort);
+    int retval = DoWinsock(pcHost, nPort, p);
 
     // Shut Winsock back down and take off.
     WSACleanup();

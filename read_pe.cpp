@@ -1,19 +1,28 @@
+#include "protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <sstream>
 #include <windows.h>
 #include <time.h>
 
 using namespace std;
 
 
-void analyzePE(char **argv) {
-       
-        HANDLE hMapObject,hFile;                //File Mapping Object
+
+protocolPacket* analyzePE(char **argv) {
+        protocolPacket *p = (protocolPacket *)malloc(sizeof(protocolPacket));
+	    p->msg_id = 0;
+		p->msg_number = 0;
+		
+		//stringstream strs;
+		//string temp_str;
+		//char* char_type;
+        
+		HANDLE hMapObject,hFile;                //File Mapping Object
         LPVOID lpBase;                          //Pointer to the base memory of mapped file
         PIMAGE_DOS_HEADER dosHeader;            //Pointer to DOS Header
 		PIMAGE_NT_HEADERS ntHeader;             //Represents the PE header format
-        //PIMAGE_SECTION_HEADER sectionHeader;    //Represents the image section header format
         PIMAGE_FILE_HEADER fileHeader;          //Represents the COFF header format
 		PIMAGE_OPTIONAL_HEADER optionalHeader;  //Represents the optional header format
 		
@@ -39,16 +48,35 @@ void analyzePE(char **argv) {
                         //Dump the Dos Header info
                         printf("\nValid Dos Exe File\n------------------\n");
                         printf("\nDumping DOS Header Info....\n---------------------------");      
-                        printf("\n%-36s%d","Number of sections : ", optionalHeader->SizeOfInitializedData); 
-						printf("\n%-36s%d","Number of symbols : ", fileHeader->NumberOfSymbols); 
-						printf("\n%-36s%d","Size of optional header : ", optionalHeader->SizeOfImage); 
-						printf("\n%-36s%d","Size of code : ", optionalHeader->SizeOfCode); 
-                        printf("\n%-36s%s","Time Stamp :",ctime(((const time_t *) &(fileHeader->TimeDateStamp))));   
+                        printf("\n%-36s%d\n","Number of sections : ", optionalHeader->SizeOfInitializedData); 
+						p->dataSize[0] = sprintf(p->data[0], "%d", optionalHeader->SizeOfInitializedData); 
+					
+				
+						printf("\n%-36s%d\n","Number of symbols : ", fileHeader->NumberOfSymbols); 
+						p->dataSize[1] = sprintf(p->data[1], "%d", fileHeader->NumberOfSymbols); 
+						
+						
+						printf("\n%-36s%d\n","Size of optional header : ", optionalHeader->SizeOfImage); 
+						p->dataSize[2] = sprintf(p->data[2], "%d", optionalHeader->SizeOfImage);
+					
+						printf("\n%-36s%d\n","Size of code : ", optionalHeader->SizeOfCode); 
+						p->dataSize[3] = sprintf(p->data[3], "%d", optionalHeader->SizeOfCode);
+						
+				
+                        printf("\n%-36s%s\n","Time Stamp :",ctime(((const time_t *) &(fileHeader->TimeDateStamp)))); 
+						
+			
+						strcpy(p->data[4], ctime(((const time_t *) &(fileHeader->TimeDateStamp))));
+						p->dataSize[4] = strlen(ctime(((const time_t *) &(fileHeader->TimeDateStamp))));
+						
                     	printf("\n===============================================================================\n");
+						return p;
                 }
                 else {
                     printf("\nGiven File is not a valid DOS file\n");
+					return NULL;
                 }	
+				
 }
 
 

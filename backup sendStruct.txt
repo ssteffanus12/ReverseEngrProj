@@ -1,0 +1,62 @@
+
+bool EchoIncomingPacketsStruct(SOCKET sd) {
+	
+	FILE *fileID;
+	cout << "struct version" << endl;
+	char acReadBuffer[kBufferSize];
+	memset(acReadBuffer, 0, kBufferSize);
+	int nReadBytes;
+	//ofstream myfile;
+   // myfile.open("output.txt", std::ios_base::app);
+    
+	protocolPacket *p = (protocolPacket *) malloc(sizeof(protocolPacket));
+	
+	nReadBytes = recv(sd, ((char *)p), sizeof(protocolPacket), 0);
+	
+    if (nReadBytes > 0) {
+            cout << "Received " << nReadBytes << " bytes from client." << endl;
+            
+		  
+		/*
+		printf("server\n");
+		printf("0: %s\n", p->data[0]);
+		printf("1: %s\n", p->data[1]);
+		printf("2: %s\n", p->data[2]);
+		printf("3: %s\n", p->data[3]);
+		printf("4: %s\n", p->data[4]);	
+	*/
+		fileID = fopen("output.txt","a");
+		for (int i=0; i<5; i++) {
+			fprintf(fileID, "%d: %s\n", i, p->data[i]);
+		}
+			
+		fclose(fileID);
+		//myfile.close();
+		
+		char *c = (char *) p;
+        int nSentBytes = 0;
+        while (nSentBytes < nReadBytes) {
+                int nTemp = send(sd, c + nSentBytes,
+                        nReadBytes - nSentBytes, 0);
+                if (nTemp > 0) {
+                    cout << "Sent " << nTemp << 
+                            " bytes back to client." << endl;
+                    nSentBytes += nTemp;
+                }
+                else if (nTemp == SOCKET_ERROR) {
+                    return false;
+                }
+                else {
+                    // Client closed connection before we could reply to
+                    // all the data it sent, so bomb out early.
+                    cout << "Peer unexpectedly dropped connection!" << 
+                            endl;
+                    return true;
+                }
+			}
+	} else if (nReadBytes == SOCKET_ERROR) {
+         return false;
+    }
+	 cout << "Connection closed by peer." << endl;	 
+	return true;
+}

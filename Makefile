@@ -29,8 +29,8 @@ distclean: clean
 
 #### Common dependencies ###############################################
 
-read_pe.$(OBJEXT): read_pe.cpp 
-main.$(OBJEXT): main.cpp 
+read_pe.$(OBJEXT): read_pe.cpp protocol.h
+main.$(OBJEXT): main.cpp protocol.h
 ws-util.$(OBJEXT): ws-util.cpp ws-util.h 
 
 

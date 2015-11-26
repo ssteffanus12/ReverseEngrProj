@@ -293,26 +293,27 @@ bool SendEcho(SOCKET sd, char* myString, int myStringLen)
 int ReadReply(SOCKET sd, char *myStr, int myStrLen)
 {
 	FILE *fileID;
-	
+	fileID = fopen("clientOUTPUT.txt","a");
     // Read reply from server
 	protocolPacket *p = (protocolPacket *) malloc(sizeof(protocolPacket));
-    int nTotalBytes = 0;
+    int nBytes = 0;
 	
-    nTotalBytes = recv(sd, ((char *)p), sizeof(protocolPacket), 0);
-    if (nTotalBytes == SOCKET_ERROR) {
-        return -1;
-    } else if (nTotalBytes == 0) {
-        cerr << "Connection closed by peer." << endl;
-        return 0;
-   }
+	do {
+		nBytes = recv(sd, ((char *)p), sizeof(protocolPacket), 0);
+		if (nBytes > 0) {
+			cout << "Received " << nBytes << " bytes from server." << endl;
+            	
+			for (int i=0; i<5; i++) {
+				decrypt(p->data[i], p->dataSize[i]);
+				fprintf(fileID, "%s\n", p->data[i]);
+			}
+			
+		} else if (nBytes == SOCKET_ERROR) {
+			return -1;
+		} 
+   } while (nBytes != 0);
 
-	cout << "Received " << nTotalBytes << " bytes from server." << endl;
-            
-	fileID = fopen("clientOUTPUT.txt","a");
-	for (int i=0; i<5; i++) {
-		 decrypt(p->data[i], p->dataSize[i]);
-	     fprintf(fileID, "%s\n", p->data[i]);
-	}
+	
 	return 0;
 }
 

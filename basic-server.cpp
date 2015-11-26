@@ -159,15 +159,12 @@ protocolPacket *readPEoutput() {
 	  if (i==5) {break;}
 	}
      
-	printf("Reading serverOUTPUT.txt\n"); 
-    
-	for (i=0; i<5; i++) {
-	   printf("%s | %d\n", p->data[i], p->dataSize[i]);
-       	   
-	}
 	
 	return p;
 }
+
+
+
 
 
 
@@ -221,14 +218,37 @@ bool EchoIncomingPackets(SOCKET sd, bool firstMsg, bool secondMsg)
 				strncpy(str,acReadBuffer,nReadBytes);
 				
 				if (strcmp(str,requestDataStr) == 0) {
-					protocolPacket *p = readPEoutput();
 					
-				    if (send(sd, ((char *)p), sizeof(protocolPacket), 0) != SOCKET_ERROR) {
-						cout << "Connection closed by peer." << endl;
-						return true;
-					} else {
-						return false;
+					ifstream infile;
+					infile.open ("serverOUTPUT.txt");
+	
+					int i=0, msgID=0;
+					std::string line;
+	
+					protocolPacket *p = (protocolPacket *)malloc(sizeof(protocolPacket));
+					p->msg_id = 0;
+	 
+					while (!infile.eof()) {
+						getline(infile,line);
+				        if (line.length() <=1) {
+							getline(infile, line);
+						}
+						strcpy(p->data[i], line.c_str());
+						p->dataSize[i] = line.length();
+						i+=1;
+						if (i==5) {
+							if (send(sd, ((char *)p), sizeof(protocolPacket), 0) != SOCKET_ERROR) {
+								i=0;
+								p = (protocolPacket *)malloc(sizeof(protocolPacket));
+								p->msg_id = ++msgID;
+							} else {
+							return false;
+							}
+							
+						 }
 					}
+					send(sd, NULL, 0, 0);
+					return true; 
 				}
 			} else if (nReadBytes == SOCKET_ERROR) {
 				return false;

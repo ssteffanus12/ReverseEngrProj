@@ -29,7 +29,7 @@ distclean: clean
 
 #### Common dependencies ###############################################
 
-read_pe.$(OBJEXT): read_pe.cpp protocol.h
+read_pe.$(OBJEXT): readPE.cpp protocol.h
 main.$(OBJEXT): main.cpp protocol.h
 ws-util.$(OBJEXT): ws-util.cpp ws-util.h 
 
@@ -37,7 +37,7 @@ ws-util.$(OBJEXT): ws-util.cpp ws-util.h
 #### Basic Winsock client ##############################################
 
 BASIC_CLIENT_OBJS = basic-client.$(OBJEXT) main.$(OBJEXT) \
-		ws-util.$(OBJEXT) read_pe.$(OBJEXT)
+		ws-util.$(OBJEXT) readPE.$(OBJEXT)
 basic-client.exe: $(BASIC_CLIENT_OBJS)
 	$(CC) $(BASIC_CLIENT_OBJS) $(LFLAGS)
 
@@ -47,7 +47,7 @@ basic-client.$(OBJEXT): basic-client.cpp ws-util.h protocol.h
 #### Basic Winsock server ##############################################
 
 BASIC_SERVER_OBJS = basic-server.$(OBJEXT) main.$(OBJEXT) \
-		ws-util.$(OBJEXT) read_pe.$(OBJEXT)
+		ws-util.$(OBJEXT) readPE.$(OBJEXT)
 basic-server.exe: $(BASIC_SERVER_OBJS)
 	$(CC) $(BASIC_SERVER_OBJS) $(LFLAGS)
 

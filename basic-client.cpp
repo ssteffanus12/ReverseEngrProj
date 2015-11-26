@@ -41,6 +41,8 @@ const int kBufferSize = 1024;
 //        "transfer system.  If this had been real a real emergency, we "
 //        "would have sent this data out-of-band.";
 //const int kEchoMessageLen = strlen(kpcEchoMessage);
+char *requestDataStr = "requestingData";
+char *sendDataStr = "sendingData";
 
 
 #if defined(SHUTDOWN_DELAY)
@@ -53,13 +55,14 @@ const int kShutdownDelay = 3;
 
 ////////////////////////////////////////////////////////////////////////
 // Prototypes
-
+extern void decrypt(char *string, int stringLength);
 u_long LookupAddress(const char* pcHost);
 SOCKET EstablishConnection(u_long nRemoteAddr, u_short nPort);
 bool SendEcho(SOCKET sd, char* myString, int myStringLen);
 int ReadReply(SOCKET sd, char *orgMsg, int orgMsgLen);
 char* acquireLogin();
 int sendMsg(SOCKET sd, char *myString, int myStrLen);
+int sendMsgwReply(SOCKET sd, char *msg, int msgLength);
 int shutdown(SOCKET sd);
 
 //// DoWinsock /////////////////////////////////////////////////////////
@@ -69,7 +72,7 @@ int shutdown(SOCKET sd);
 
 
 
-int DoWinsock(const char* pcHost, int nPort, protocolPacket *p)
+int DoWinsock(const char* pcHost, int nPort, protocolPacket *p, bool retDatafromServer)
 {
 	int j=0;
 	char *loginStr = NULL;
@@ -98,13 +101,18 @@ int DoWinsock(const char* pcHost, int nPort, protocolPacket *p)
     }
     cout << "connected, socket " << sd << "." << endl;
   
-  while (j<=1) {
+  while (j<=2) {
 	if (j==0) {
-	   loginStr = acquireLogin();
+	   loginStr = acquireLogin();                         //first time, authenticate
 	   retVal = sendMsg(sd, loginStr, strlen(loginStr));
 	   if (retVal == 3) return 3;
-	} else  {
-		retVal = sendMsg(sd, ((char *)p), sizeof(protocolPacket));
+	} else if (j==1 && retDatafromServer == false) {           //second msg => sending data to server
+       retVal = sendMsg(sd, sendDataStr, strlen(sendDataStr));
+	} else if (j==1 && retDatafromServer) {
+       retVal = sendMsgwReply(sd, requestDataStr, strlen(requestDataStr)); //second msg => requesting data from server
+	   break;
+	} else if (j==2 && retDatafromServer == false) { 
+		retVal = sendMsg(sd, ((char *)p), sizeof(protocolPacket));  //[optional] third msg => data sent to server
 		if (retVal == 3) return 3;
 	} 
 	j+=1;
@@ -163,17 +171,13 @@ SOCKET EstablishConnection(u_long nRemoteAddr, u_short nPort)
 }
 
 
-
-
-
-
-int sendMsg(SOCKET sd, char *msg, int msgLength) {
-	
+int sendMsgwReply(SOCKET sd, char *msg, int msgLength) {
 	// Send the echo packet to the server
     cout << "Sending echo packet (" << msgLength << " bytes)..." << flush;
     int nBytes;
     if (SendEcho(sd, msg, msgLength)) {
 		cout << endl;
+
 		if ((nBytes = ReadReply(sd, msg, msgLength)) > 0) {
 			if (nBytes == kBufferSize) {
 				cerr << "FYI, likely data overflow." << endl;
@@ -188,6 +192,20 @@ int sendMsg(SOCKET sd, char *msg, int msgLength) {
 					endl;
 			return 3;
 		}
+	
+}
+return 0;
+}
+
+
+
+int sendMsg(SOCKET sd, char *msg, int msgLength) {
+	
+	// Send the echo packet to the server
+    cout << "Sending echo packet (" << msgLength << " bytes)..." << flush;
+   
+    if (SendEcho(sd, msg, msgLength)) {
+		cout << endl;
 	}
 	else {
         cerr << endl << WSAGetLastErrorMessage("send echo packet") <<
@@ -195,7 +213,7 @@ int sendMsg(SOCKET sd, char *msg, int msgLength) {
         return 3;
     }
    for (int i = 0; i < kShutdownDelay; ++i) {
-        Sleep(1000);
+        Sleep(500);
         cout << '.' << flush;
     }
     cout << endl;
@@ -212,7 +230,7 @@ int shutdown(SOCKET sd) {
     cout << "Will shut down in " << kShutdownDelay << 
             " seconds... (one dot per second): " << flush;
     for (int i = 0; i < kShutdownDelay; ++i) {
-        Sleep(1000);
+        Sleep(500);
         cout << '.' << flush;
     }
     cout << endl;
@@ -266,16 +284,7 @@ bool SendEcho(SOCKET sd, char* myString, int myStringLen)
     }
 }
 
-/*
-bool SendEchoStruct(SOCKET sd, protocolPacket pp, int ppSize) {  
-	
-	if (send(sd, pp, ppSize, 0) != SOCKET_ERROR) {
-		return true;
-	} else {
-		return false;
-	}
-}
-*/
+
 
 //// ReadReply /////////////////////////////////////////////////////////
 // Read the reply packet and check it for sanity.  Returns -1 on 
@@ -283,32 +292,27 @@ bool SendEchoStruct(SOCKET sd, protocolPacket pp, int ppSize) {
 
 int ReadReply(SOCKET sd, char *myStr, int myStrLen)
 {
+	FILE *fileID;
+	
     // Read reply from server
-    char acReadBuffer[kBufferSize];
+	protocolPacket *p = (protocolPacket *) malloc(sizeof(protocolPacket));
     int nTotalBytes = 0;
-    while (nTotalBytes < myStrLen) {
-        int nNewBytes = recv(sd, acReadBuffer + nTotalBytes, 
-                kBufferSize - nTotalBytes, 0);
-        if (nNewBytes == SOCKET_ERROR) {
-            return -1;
-        }
-        else if (nNewBytes == 0) {
-            cerr << "Connection closed by peer." << endl;
-            return 0;
-        }
+	
+    nTotalBytes = recv(sd, ((char *)p), sizeof(protocolPacket), 0);
+    if (nTotalBytes == SOCKET_ERROR) {
+        return -1;
+    } else if (nTotalBytes == 0) {
+        cerr << "Connection closed by peer." << endl;
+        return 0;
+   }
 
-        nTotalBytes += nNewBytes;
-    }
-
-    // Check data for sanity
-    if (strncmp(acReadBuffer, myStr, nTotalBytes) == 0) {
-		cout << "Reply packet matches what we sent!" << endl;
+	cout << "Received " << nTotalBytes << " bytes from server." << endl;
+            
+	fileID = fopen("clientOUTPUT.txt","a");
+	for (int i=0; i<5; i++) {
+		 decrypt(p->data[i], p->dataSize[i]);
+	     fprintf(fileID, "%s\n", p->data[i]);
 	}
-	else {
-        cerr << "Mismatch in data received from server. " <<
-                "Something's broken!" << endl;
-    }
-
-    return nTotalBytes;
+	return 0;
 }
 

@@ -19,7 +19,7 @@ using namespace std;
 
 //// Prototypes ////////////////////////////////////////////////////////
 
-extern int DoWinsock(const char* pcHost, int nPort, protocolPacket *p);
+extern int DoWinsock(const char* pcHost, int nPort, protocolPacket *p, bool retDatafromServer);
 extern protocolPacket* analyzePE(char ** argv);
 
 //// Constants /////////////////////////////////////////////////////////
@@ -49,16 +49,17 @@ int main(int argc, char* argv[])
     }
 
     // Do a little sanity checking because we're anal.
+	bool retDatafromServer = false;
     int nNumArgsIgnored = (argc - 3);
-    if (nNumArgsIgnored > 0) {
+	
+	if (nNumArgsIgnored == 1) {
 	    p = analyzePE(argv);
-        //cerr << nNumArgsIgnored << " extra argument" <<
-          //      (nNumArgsIgnored == 1 ? "" : "s") << 
-          //    " ignored.  FYI." << endl;
-		 // for (int l=0; l<5; l++) {
-		//	printf("%d: %s | size: %d\n", l, p->data[l], p->dataSize[l]);
-		//  }
-    }
+		if (p == NULL) {
+			exit(0);
+		}
+    } else if (nNumArgsIgnored == 2) {
+		retDatafromServer = true;
+	} 
 
     // Start Winsock up
     WSAData wsaData;
@@ -70,7 +71,7 @@ int main(int argc, char* argv[])
     }
 
     // Call the main example routine.
-    int retval = DoWinsock(pcHost, nPort, p);
+    int retval = DoWinsock(pcHost, nPort, p, retDatafromServer);
 
     // Shut Winsock back down and take off.
     WSACleanup();
